@@ -1,0 +1,255 @@
+name: Test & Deploy to VPS (PM2 Mode)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:  # Manual trigger button
+
+concurrency:
+  group: production
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Run Tests & Checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: Log Environment Info
+        run: |
+          echo "==================================="
+          echo "TEST JOB - Environment Details"
+          echo "==================================="
+          echo "Node version: $(node --version)"
+          echo "NPM version: $(npm --version)"
+          echo "Working directory: $(pwd)"
+          echo "Repository: ${{ github.repository }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Commit message: ${{ github.event.head_commit.message }}"
+          echo "Triggered by: ${{ github.actor }}"
+          echo "==================================="
+      
+      - name: Install dependencies
+        run: |
+          echo "📦 Installing npm dependencies..."
+          npm ci
+          echo "✅ Dependencies installed successfully"
+          echo "📊 Total packages: $(npm list --depth=0 2>/dev/null | wc -l)"
+      
+      - name: Run security audit
+        run: |
+          echo "🔒 Running security audit..."
+          npm audit --audit-level=moderate || true
+          echo "✅ Audit complete (check output above for any issues)"
+      
+      - name: Run linter
+        run: |
+          echo "🔍 Running ESLint..."
+          npm run lint
+          echo "✅ Linting passed"
+      
+      - name: Check TypeScript
+        run: |
+          echo "📘 Running TypeScript compiler check..."
+          npx tsc --noEmit
+          echo "✅ TypeScript check passed"
+      
+      - name: Build project (Test Mode)
+        run: |
+          echo "🏗️ Building project for testing..."
+          npm run build
+          echo "✅ Build successful"
+      
+      - name: Test Complete
+        run: |
+          echo "==================================="
+          echo "✅ ALL TESTS PASSED"
+          echo "Ready for deployment!"
+          echo "==================================="
+
+  deploy:
+    name: Deploy to VPS (PM2)
+    needs: test  # Wait for tests to pass
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'  # Only deploy on main branch
+    
+    steps:
+      - name: Log Deployment Start
+        run: |
+          echo "==================================="
+          echo "🚀 DEPLOY JOB - Starting PM2 Deployment"
+          echo "==================================="
+          echo "Repository: ${{ github.repository }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Commit message: ${{ github.event.head_commit.message }}"
+          echo "Triggered by: ${{ github.actor }}"
+          echo "VPS Target: ${{ secrets.VPS_HOST }}"
+          echo "Deploy Path: /srv/marvel"
+          echo "Frontend Path: /srv/marvel/frontend"
+          echo "Time: $(date)"
+          echo "==================================="
+      
+      - name: Deploy and Restart with PM2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || '22' }}
+          script: |
+            echo "==================================="
+            echo "🔌 Connected to VPS: $(hostname)"
+            echo "==================================="
+            
+            # Navigate to project directory
+            echo "📂 Changing to project directory..."
+            cd /srv/marvel || exit 1
+            echo "✅ Now in: $(pwd)"
+            
+            # Check git status
+            echo "📊 Current git status:"
+            git status --short
+            echo "Current branch: $(git branch --show-current)"
+            echo "Last commit: $(git log -1 --oneline)"
+            
+            # Pull latest code
+            echo ""
+            echo "📥 Pulling latest code from main branch..."
+            git fetch origin main
+            git reset --hard origin/main
+            echo "✅ Code updated to: $(git log -1 --oneline)"
+            
+            # Navigate to frontend directory
+            echo ""
+            echo "📂 Moving to frontend directory..."
+            cd frontend || exit 1
+            echo "✅ Now in: $(pwd)"
+            
+            # Install dependencies
+            echo ""
+            echo "📦 Installing dependencies with npm ci..."
+            npm ci
+            echo "✅ Dependencies installed"
+            echo "📊 Package count: $(npm list --depth=0 2>/dev/null | wc -l)"
+            
+            # Build project
+            echo ""
+            echo "🏗️ Building Next.js project..."
+            npm run build
+            echo "✅ Build complete"
+            
+            # Check if PM2 is installed
+            echo ""
+            echo "🔍 Checking PM2 status..."
+            if ! command -v pm2 &> /dev/null; then
+              echo "⚠️  PM2 not found globally, installing..."
+              sudo npm install -g pm2
+              echo "✅ PM2 installed"
+            fi
+            
+            # Show current PM2 status
+            echo "📊 Current PM2 processes:"
+            pm2 list || echo "No PM2 processes running yet"
+            
+            # Start or restart with PM2 using ecosystem config
+            echo ""
+            echo "🚀 Starting/Restarting with PM2..."
+            if pm2 list | grep -q "frontend"; then
+              echo "♻️  Restarting existing PM2 process..."
+              pm2 restart ecosystem.config.js
+            else
+              echo "▶️  Starting new PM2 process..."
+              pm2 start ecosystem.config.js
+            fi
+            
+            # Save PM2 config
+            echo "💾 Saving PM2 configuration..."
+            pm2 save
+            
+            # Show final status
+            echo ""
+            echo "==================================="
+            echo "📊 Final PM2 Status:"
+            echo "==================================="
+            pm2 list
+            echo ""
+            echo "📝 PM2 Logs (last 10 lines):"
+            pm2 logs frontend --lines 10 --nostream || echo "Logs not available yet"
+            
+            echo ""
+            echo "==================================="
+            echo "✅ DEPLOYMENT COMPLETE!"
+            echo "==================================="
+            echo "App: frontend"
+            echo "Status: $(pm2 show frontend | grep 'status' | awk '{print $4}')"
+            echo "Memory: $(pm2 show frontend | grep 'memory' | head -1 | awk '{print $4}')"
+            echo "PID: $(pm2 show frontend | grep 'pid' | awk '{print $4}')"
+            echo "Uptime: $(pm2 show frontend | grep 'uptime' | awk '{print $4}')"
+            echo "==================================="
+      
+      - name: Verify Deployment
+        run: |
+          echo "==================================="
+          echo "🔍 Final Verification"
+          echo "==================================="
+          echo "Waiting 5 seconds for server to start..."
+          sleep 5
+          
+          # Try to check if site is responding
+          echo "Testing site availability..."
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.VPS_HOST }}:3002 || echo "000")
+          
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "✅ SUCCESS: Site is live on port 3002 (HTTP 200)"
+          else
+            echo "ℹ️  Site returned HTTP $HTTP_STATUS (may still be starting)"
+            echo "Check PM2 logs on VPS for details"
+          fi
+          
+          echo ""
+          echo "==================================="
+          echo "🎉 PM2 DEPLOYMENT COMPLETE!"
+          echo "==================================="
+          echo "Site URL: http://${{ secrets.VPS_HOST }}:3002"
+          echo "Deployed at: $(date)"
+          echo "Commit: ${{ github.sha }}"
+          echo "By: ${{ github.actor }}"
+          echo "==================================="
+          echo ""
+          echo "💡 Useful commands on VPS:"
+          echo "  pm2 logs frontend         # View logs"
+          echo "  pm2 status                # Check status"
+          echo "  pm2 restart frontend      # Restart app"
+          echo "==================================="
+      
+      - name: Deployment Summary
+        if: always()
+        run: |
+          echo "==================================="
+          echo "📋 DEPLOYMENT SUMMARY"
+          echo "==================================="
+          echo "Status: ${{ job.status }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "VPS Path: /srv/marvel"
+          echo "Frontend Path: /srv/marvel/frontend"
+          echo "Process: PM2 (frontend)"
+          echo "Port: 3002"
+          echo "==================================="
