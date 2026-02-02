@@ -15,7 +15,6 @@ const nextConfig: NextConfig = {
   
   // For production
   reactStrictMode: true,
-  swcMinify: true,
 };
 
 export default nextConfig;
