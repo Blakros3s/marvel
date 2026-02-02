@@ -5,6 +5,7 @@ This workflow automatically **tests** and **deploys** your site to your VPS with
 ---
 
 ## How It Works
+
 **On every push/PR to main:**
 1. **Test Job**: Runs linting, TypeScript check, security audit, and build verification
 2. **Deploy Job** (only on main branch): SSHs to VPS and:
