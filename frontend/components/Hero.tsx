@@ -56,6 +56,13 @@ export default function Hero() {
             >
               View Timeline
             </Link>
+            <Link
+              href="/battle"
+              className="px-8 py-4 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white font-bold rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg shadow-red-600/25 flex items-center gap-2"
+            >
+              <Zap className="w-5 h-5" />
+              Battle Arena
+            </Link>
           </div>
         </motion.div>
 

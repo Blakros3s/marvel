@@ -11,17 +11,17 @@ module.exports = {
       max_memory_restart: '500M',
       env: {
         NODE_ENV: 'production',
-        PORT: 3002,
+        PORT: 3006,
       },
       // Logging
-      log_file: '/var/log/pm2/frontend.log',
-      out_file: '/var/log/pm2/frontend-out.log',
-      error_file: '/var/log/pm2/frontend-error.log',
+      log_file: '/home/blak_ros3s/.pm2/logs/frontend.log',
+      out_file: '/home/blak_ros3s/.pm2/logs/frontend-out.log',
+      error_file: '/home/blak_ros3s/.pm2/logs/frontend-error.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       merge_logs: true,
       // Performance
       exec_mode: 'fork',
-      wait_ready: true,
+      wait_ready: false,
       listen_timeout: 10000,
       kill_timeout: 5000,
     },
