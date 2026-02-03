@@ -30,16 +30,6 @@ jobs:
           npm run build
           echo "✅ Test build complete"
 
-      - name: Test SSH login
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          passphrase: ${{ secrets.SSH_PASSPHRASE }}
-          port: ${{ secrets.SSH_PORT }}
-          script: echo "✅ SSH login successful"
-
   deploy:
     name: Deploy to VPS (PM2)
     needs: test
