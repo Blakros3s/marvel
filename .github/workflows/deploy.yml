@@ -14,7 +14,6 @@ concurrency:
 jobs:
   test:
     name: Run Tests & Checks
-    environment: production
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -77,7 +76,6 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT }}
-          passphrase: ${{ secrets.VPS_PASSPHRASE }}
           script: |
             echo "SSH login successful!"
 
@@ -91,7 +89,6 @@ jobs:
   deploy:
     name: Deploy to VPS (PM2)
     needs: test  # Wait for tests to pas
-    environment: productions
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'  # Only deploy on main branch
     
@@ -119,7 +116,6 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT }}
-          passphrase: ${{ secrets.VPS_PASSPHRASE }}
           script: |
             echo "==================================="
             echo "🔌 Connected to VPS: $(hostname)"
