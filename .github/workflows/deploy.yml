@@ -3,6 +3,12 @@ name: Simple VPS SSH Login
 on:
   workflow_dispatch:
 
+env:
+  SSH_HOST: ${{ secrets.SSH_HOST }}
+  SSH_USER: ${{ secrets.SSH_USER }}
+  SSH_KEY: ${{ secrets.SSH_KEY }}
+  SSH_PORT: ${{ secrets.SSH_PORT }}
+
 jobs:
   ssh-login-test:
     runs-on: ubuntu-latest
