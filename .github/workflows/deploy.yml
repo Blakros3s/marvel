@@ -1,43 +1,22 @@
-name: SSH Secrets Sanity Check
+name: Simple VPS SSH Login
 
 on:
-  workflow_dispatch:   # manual trigger
+  workflow_dispatch:
 
 jobs:
-  ssh-secrets-test:
+  ssh-login-test:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check SSH secrets presence
-        run: |
-          echo "🔍 Checking secrets..."
-
-          if [ -z "$VPS_SSH_KEY" ]; then
-            echo "❌ VPS_SSH_KEY is EMPTY"
-          else
-            echo "✅ VPS_SSH_KEY is PRESENT"
-            echo "Key length: ${#VPS_SSH_KEY}"
-          fi
-
-          if [ -z "$VPS_USER" ]; then
-            echo "❌ VPS_USER is EMPTY"
-          else
-            echo "✅ VPS_USER is PRESENT"
-          fi
-
-          if [ -z "$VPS_HOST" ]; then
-            echo "❌ VPS_HOST is EMPTY"
-          else
-            echo "✅ VPS_HOST is PRESENT"
-          fi
-
-          if [ -z "$VPS_PORT" ]; then
-            echo "❌ VPS_PORT is EMPTY"
-          else
-            echo "✅ VPS_PORT is PRESENT"
-          fi
-        env:
-          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_PORT: ${{ secrets.VPS_PORT }}
+      - name: SSH into VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            echo "✅ SSH login successful"
+            whoami
+            hostname
+            uptime
