@@ -3,66 +3,50 @@ name: Test & Deploy to VPS (PM2 Mode)
 on:
   push:
     branches: [main]
-  workflow_dispatch:
+  workflow_dispatch:   # Manual trigger button
 
 jobs:
   test:
-    name: Run Tests & Build
+    name: Run Tests & Checks
     runs-on: ubuntu-latest
-
     defaults:
       run:
         working-directory: frontend
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: npm
+          cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install dependencies & build
+      - name: Install dependencies & Build
         run: |
-          echo "📦 Installing dependencies..."
+          echo "📦 Installing npm dependencies..."
           npm ci
           echo "🏗️ Building project..."
           npm run build
-          echo "✅ Build successful!"
-
-      - name: Test SSH connection
-        uses: appleboy/ssh-action@v1.2.5
+          echo "✅ Test build complete"
+      - name: Test SSH login
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
           port: ${{ secrets.SSH_PORT }}
-          timeout: 30s
-          script: |
-            echo "🔌 SSH connection successful!"
-
-      - name: Add job summary
-        if: always()
-        run: |
-          echo "## 🧪 Test Job Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- 📦 Dependencies installed: ✅" >> $GITHUB_STEP_SUMMARY
-          echo "- 🏗️ Build completed: ✅" >> $GITHUB_STEP_SUMMARY
-          echo "- 🔌 SSH tested: ✅" >> $GITHUB_STEP_SUMMARY
-          echo "- Overall: ✅ SUCCESS" >> $GITHUB_STEP_SUMMARY
+          script: echo "✅ SSH login successful"
 
   deploy:
-    name: Deploy to VPS
+    name: Deploy to VPS (PM2)
     needs: test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
-
     steps:
       - name: Deploy & Restart PM2
-        uses: appleboy/ssh-action@v1.2.5
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
@@ -70,27 +54,39 @@ jobs:
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
           port: ${{ secrets.SSH_PORT }}
           script: |
-            set -e
-            echo "🚀 Deployment started!"
+            set -e  # Exit on error
+            
+            echo "📂 Navigating to project directory..."
             cd /srv/marvel || exit 1
+            
+            echo "🔄 Resetting any local changes..."
             git reset --hard HEAD
+            git clean -fd
+            
+            echo "📥 Pulling latest code..."
             git pull origin main
+            
+            echo "📂 Entering frontend directory..."
             cd frontend || exit 1
+            
+            echo "📦 Installing dependencies..."
             npm ci
+            
+            echo "🏗️ Building application..."
             npm run build
+            
+            echo "🔄 Restarting PM2 application..."
             if pm2 list | grep -q "frontend"; then
+              echo "Reloading existing PM2 process..."
               pm2 reload ecosystem.config.js --update-env
             else
+              echo "Starting new PM2 process..."
               pm2 start ecosystem.config.js
             fi
+            
+            echo "💾 Saving PM2 configuration..."
             pm2 save
-            echo "✅ Deployment finished successfully!"
-
-      - name: Add deploy summary
-        if: always()
-        run: |
-          echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- Pull latest code: ✅" >> $GITHUB_STEP_SUMMARY
-          echo "- Build frontend: ✅" >> $GITHUB_STEP_SUMMARY
-          echo "- PM2 restarted: ✅" >> $GITHUB_STEP_SUMMARY
-          echo "- Overall: ✅ SUCCESS" >> $GITHUB_STEP_SUMMARY
+            
+            echo "📊 Current PM2 status:"
+            pm2 list
+            pm2 info frontend
