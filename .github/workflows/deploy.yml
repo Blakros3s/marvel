@@ -81,17 +81,15 @@ jobs:
 
             echo "📅 Deployment finished at $(date)"
 
-      - name: Copy deployment log to runner
-        uses: appleboy/scp-action@v0.1.4
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          passphrase: ${{ secrets.SSH_PASSPHRASE }}
-          port: ${{ secrets.SSH_PORT }}
-          source: "/srv/logs/marvel/deploy.log"
-          target: "/tmp/deploy.log"
-      
+      - name: Pull deployment log from VPS
+        run: |
+          mkdir -p /tmp
+          ssh -i <(echo "${{ secrets.SSH_KEY }}") \
+              -p ${{ secrets.SSH_PORT }} \
+              -o StrictHostKeyChecking=no \
+              ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
+              "cat /srv/logs/marvel/deploy.log" > /tmp/deploy.log
+
       - name: Upload deployment log
         if: always()
         uses: actions/upload-artifact@v4
