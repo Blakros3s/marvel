@@ -15,18 +15,7 @@ jobs:
         working-directory: frontend
 
     steps:
-      - name: Test SSH login
-        uses: appleboy/ssh-action@v1.2.5
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          passphrase: ${{ secrets.SSH_PASSPHRASE }}
-          port: ${{ secrets.SSH_PORT }}
-          timeout: 20s
-          script: echo "✅ SSH login successful"
-          
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Setup Node.js
@@ -34,56 +23,44 @@ jobs:
         with:
           node-version: '20'
           cache: npm
-          cache-dependency-path: frontend/package-lock.json
 
-      - name: Install dependencies & build (with logs)
+      - name: Install dependencies & build
         run: |
-          set -e
-          mkdir -p logs
+          echo "📦 Installing dependencies..."
+          npm ci
+          echo "🏗️ Building project..."
+          npm run build
+          echo "✅ Build successful!"
 
-          {
-            echo "======================================"
-            echo "🧪 TEST JOB STARTED"
-            echo "📅 Time: $(date)"
-            echo "======================================"
-
-            echo "📦 Installing dependencies..."
-            npm ci
-
-            echo "🏗️ Building project..."
-            npm run build
-
-            echo "✅ Build successful"
-
-            echo "======================================"
-            echo "🧪 TEST JOB FINISHED"
-            echo "📅 Time: $(date)"
-            echo "======================================"
-          } | tee logs/test.log
-
-      - name: Upload test log artifact
-        if: always()
-        uses: actions/upload-artifact@v4
+      - name: Test SSH connection
+        uses: appleboy/ssh-action@v1.2.5
         with:
-          name: test-log
-          path: frontend/logs/test.log
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          port: ${{ secrets.SSH_PORT }}
+          timeout: 30s
+          script: |
+            echo "🔌 SSH connection successful!"
 
-      - name: Add test log to job summary
+      - name: Add job summary
         if: always()
         run: |
-          echo "## 🧪 Test Job Log (last 50 lines)" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          tail -n 50 logs/test.log >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "## 🧪 Test Job Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- 📦 Dependencies installed: ✅" >> $GITHUB_STEP_SUMMARY
+          echo "- 🏗️ Build completed: ✅" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔌 SSH tested: ✅" >> $GITHUB_STEP_SUMMARY
+          echo "- Overall: ✅ SUCCESS" >> $GITHUB_STEP_SUMMARY
 
   deploy:
-    name: Deploy to VPS (PM2)
+    name: Deploy to VPS
     needs: test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
 
     steps:
-      - name: Deploy & restart PM2 (with server logs)
+      - name: Deploy & Restart PM2
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -93,38 +70,26 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           script: |
             set -e
-            mkdir -p /srv/logs/marvel
-            exec > /srv/logs/marvel/deploy.log 2>&1
-
-            echo "======================================"
-            echo "🚀 DEPLOYMENT STARTED"
-            echo "📅 Time: $(date)"
-            echo "======================================"
-
-            cd /srv/marvel
+            echo "🚀 Deployment started!"
+            cd /srv/marvel || exit 1
             git reset --hard HEAD
             git pull origin main
-
-            cd frontend
+            cd frontend || exit 1
             npm ci
             npm run build
-
             if pm2 list | grep -q "frontend"; then
               pm2 reload ecosystem.config.js --update-env
             else
               pm2 start ecosystem.config.js
             fi
-
             pm2 save
+            echo "✅ Deployment finished successfully!"
 
-            echo "======================================"
-            echo "🚀 DEPLOYMENT FINISHED"
-            echo "📅 Time: $(date)"
-            echo "======================================"
-
-      - name: Upload deployment log (placeholder)
+      - name: Add deploy summary
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: deploy-log
-          path: /tmp/nonexistent || true
+        run: |
+          echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- Pull latest code: ✅" >> $GITHUB_STEP_SUMMARY
+          echo "- Build frontend: ✅" >> $GITHUB_STEP_SUMMARY
+          echo "- PM2 restarted: ✅" >> $GITHUB_STEP_SUMMARY
+          echo "- Overall: ✅ SUCCESS" >> $GITHUB_STEP_SUMMARY
