@@ -81,9 +81,24 @@ jobs:
 
             echo "📅 Deployment finished at $(date)"
 
+      - name: Copy deployment log to runner
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          port: ${{ secrets.SSH_PORT }}
+          source: "/srv/logs/marvel/deploy.log"
+          target: "/tmp/deploy.log"
+      
       - name: Upload deployment log
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: deployment-log
-          path: /srv/logs/marvel/deploy.log
+          path: /tmp/deploy.log
+          if-no-files-found: warn
+          compression-level: 6
+          overwrite: false
+          include-hidden-files: false
